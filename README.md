@@ -19,7 +19,7 @@ Add the following to your `composer.json`
 "repositories": [
     {
         "type": "vcs",
-        "url": "git@github.com:rkeet/behatch-contexts.git"
+        "url": "git@github.com:alvarodelgado-aircury/behatch-contexts.git"
     }
 ],
 ```
