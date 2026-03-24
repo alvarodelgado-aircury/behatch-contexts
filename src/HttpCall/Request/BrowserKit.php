@@ -3,13 +3,20 @@ declare(strict_types=1);
 
 namespace Behatch\HttpCall\Request;
 
-use Behat\Mink\Driver\Goutte\Client as GoutteClient;
 use Behat\Mink\Mink;
-use Symfony\Component\BrowserKit\Client as BrowserKitClient;
+use Symfony\Component\BrowserKit\AbstractBrowser;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class BrowserKit
 {
+    /**
+     * Headers merged into each request. Stored here because BrowserKitDriver does not
+     * expose a reliable way to read them back from the client after reset/session changes.
+     *
+     * @var array<string, string>
+     */
+    private array $requestHeaders = [];
+
     protected Mink $mink;
 
     public function __construct(Mink $mink)
@@ -17,37 +24,40 @@ class BrowserKit
         $this->mink = $mink;
     }
 
-    public function getMethod()
+    public function getMethod(): string
     {
         return $this->getRequest()->getMethod();
     }
 
-    public function getUri()
+    public function getUri(): string
     {
         return $this->getRequest()->getUri();
     }
 
-    public function getServer()
+    /**
+     * @return array<string, mixed>
+     */
+    public function getServer(): array
     {
         return $this->getRequest()->getServer();
     }
 
-    public function getParameters()
+    /**
+     * @return array<string, mixed>
+     */
+    public function getParameters(): array
     {
         return $this->getRequest()->getParameters();
     }
 
-    protected function getRequest()
+    protected function getRequest(): object
     {
         $client = $this->mink->getSession()->getDriver()->getClient();
-        // BC layer for BrowserKit 2.2.x and older
         if (\method_exists($client, 'getInternalRequest')) {
-            $request = $client->getInternalRequest();
-        } else {
-            $request = $client->getRequest();
+            return $client->getInternalRequest();
         }
 
-        return $request;
+        return $client->getRequest();
     }
 
     public function getContent(): string
@@ -55,13 +65,18 @@ class BrowserKit
         return $this->mink->getSession()->getPage()->getContent();
     }
 
+    /**
+     * @param array<string, mixed> $parameters
+     * @param array<string, mixed> $files
+     * @param array<string, string> $headers Server parameters for the request (e.g. HTTP_* headers)
+     */
     public function send(
-        $method,
-        $url,
-        $parameters = [],
-        $files = [],
-        $content = null,
-        $headers = []
+        string $method,
+        string $url,
+        array $parameters = [],
+        array $files = [],
+        ?string $content = null,
+        array $headers = []
     ): \Behat\Mink\Element\DocumentElement {
         foreach ($files as &$file) {
             if (\is_string($file)) {
@@ -70,10 +85,17 @@ class BrowserKit
         }
         unset($file);
 
+        $files = $this->normalizeFilesForHttpBrowser($files);
+
         $client = $this->mink->getSession()->getDriver()->getClient();
+        if (!$client instanceof AbstractBrowser) {
+            throw new \RuntimeException(\sprintf('Expected %s, got %s.', AbstractBrowser::class, $client::class));
+        }
+
+        $mergedHeaders = \array_merge($headers, $this->requestHeaders);
 
         $client->followRedirects(false);
-        $client->request($method, $url, $parameters, $files, $headers, $content);
+        $client->request($method, $url, $parameters, $files, $mergedHeaders, $content);
         $client->followRedirects(true);
         $this->resetHttpHeaders();
 
@@ -82,27 +104,19 @@ class BrowserKit
 
     public function setHttpHeader(string $name, string $value): void
     {
-        $client = $this->mink->getSession()->getDriver()->getClient();
-        // Goutte\Client
-        if (\method_exists($client, 'setHeader')) {
-            $client->setHeader($name, $value);
-        } else {
-            // Symfony\Component\BrowserKit\Client
+        $contentHeaders = ['CONTENT_LENGTH' => true, 'CONTENT_MD5' => true, 'CONTENT_TYPE' => true];
+        $name = \str_replace('-', '_', \strtoupper($name));
 
-            /* taken from Behat\Mink\Driver\BrowserKitDriver::setRequestHeader */
-            $contentHeaders = ['CONTENT_LENGTH' => true, 'CONTENT_MD5' => true, 'CONTENT_TYPE' => true];
-            $name = \str_replace('-', '_', \strtoupper($name));
-
-            // CONTENT_* are not prefixed with HTTP_ in PHP when building $_SERVER
-            if (!isset($contentHeaders[$name])) {
-                $name = 'HTTP_' . $name;
-            }
-            /* taken from Behat\Mink\Driver\BrowserKitDriver::setRequestHeader */
-
-            $client->setServerParameter($name, $value);
+        if (!isset($contentHeaders[$name])) {
+            $name = 'HTTP_' . $name;
         }
+
+        $this->requestHeaders[$name] = $value;
     }
 
+    /**
+     * @return array<string, array<int, string>|string>
+     */
     public function getHttpHeaders(): array
     {
         return \array_change_key_case(
@@ -111,21 +125,24 @@ class BrowserKit
         );
     }
 
-    public function getHttpHeader($name): string
+    public function getHttpHeader(string $name): string
     {
         $values = $this->getHttpRawHeader($name);
 
         return implode(', ', $values);
     }
 
-    public function getHttpRawHeader($name)
+    /**
+     * @return list<string>
+     */
+    public function getHttpRawHeader(string $name): array
     {
         $name = strtolower($name);
         $headers = $this->getHttpHeaders();
 
         if (isset($headers[$name])) {
             $value = $headers[$name];
-            if (!is_array($headers[$name])) {
+            if (!\is_array($headers[$name])) {
                 $value = [$headers[$name]];
             }
         } else {
@@ -139,12 +156,38 @@ class BrowserKit
 
     protected function resetHttpHeaders(): void
     {
-        /** @var GoutteClient|BrowserKitClient $client */
-        $client = $this->mink->getSession()->getDriver()->getClient();
+        $this->requestHeaders = [];
 
-        $client->setServerParameters([]);
-        if ($client instanceof GoutteClient) {
-            $client->restart();
+        $client = $this->mink->getSession()->getDriver()->getClient();
+        if ($client instanceof AbstractBrowser) {
+            $client->setServerParameters([]);
         }
+    }
+
+    /**
+     * Symfony HttpBrowser expects PHP $_FILES-shaped arrays; UploadedFile objects are not handled.
+     *
+     * @param array<string, mixed> $files
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeFilesForHttpBrowser(array $files): array
+    {
+        $normalized = [];
+        foreach ($files as $key => $file) {
+            if ($file instanceof UploadedFile) {
+                $normalized[$key] = [
+                    'name' => $file->getClientOriginalName(),
+                    'type' => $file->getMimeType(),
+                    'tmp_name' => $file->getRealPath() ?: $file->getPathname(),
+                    'error' => $file->getError(),
+                    'size' => $file->getSize(),
+                ];
+            } else {
+                $normalized[$key] = $file;
+            }
+        }
+
+        return $normalized;
     }
 }

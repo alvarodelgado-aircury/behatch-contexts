@@ -64,12 +64,10 @@ class Json
      */
     private function decode(PyStringNode|string $content): mixed
     {
-        $result = \json_decode($content, null, 512, JSON_THROW_ON_ERROR);
-
-        if (\json_last_error() !== JSON_ERROR_NONE) {
+        try {
+            return \json_decode((string) $content, null, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
             throw new \Exception("The string '$content' is not valid json");
         }
-
-        return $result;
     }
 }

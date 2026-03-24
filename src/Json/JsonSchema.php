@@ -10,7 +10,7 @@ class JsonSchema extends Json
 {
     private ?string $uri;
 
-    public function __construct($content, $uri = null)
+    public function __construct($content, ?string $uri = null)
     {
         $this->uri = $uri;
 

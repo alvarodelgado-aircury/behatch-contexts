@@ -10,7 +10,7 @@ use Behatch\HttpCall\Request;
 
 class RestContext extends BaseContext
 {
-    protected Request\BrowserKit|Request\Goutte|Request $request;
+    protected Request\BrowserKit|Request $request;
 
     public function __construct(Request $request)
     {
@@ -22,7 +22,7 @@ class RestContext extends BaseContext
      *
      * @Given I send a :method request to :url
      */
-    public function iSendARequestTo($method, $url, PyStringNode $body = null, $files = [])
+    public function iSendARequestTo($method, $url, ?PyStringNode $body = null, $files = [])
     {
         return $this->request->send(
             $method,
@@ -143,14 +143,6 @@ class RestContext extends BaseContext
      */
     public function theHeaderShouldBeContains($name, $value): void
     {
-        \trigger_error(
-            \sprintf(
-                'The %s function is deprecated since version 3.1 and will be removed in 4.0. Use the %s::theHeaderShouldContain function instead.',
-                __METHOD__,
-                __CLASS__
-            ),
-            E_USER_DEPRECATED
-        );
         $this->theHeaderShouldContain($name, $value);
     }
 
@@ -268,9 +260,9 @@ class RestContext extends BaseContext
      *
      * @Given the header :name is set equal to :value
      */
-    public function theHeaderIsSetEqualTo(string $name, $value): void
+    public function theHeaderIsSetEqualTo(string $name, int|string $value): void
     {
-        $this->request->setHttpHeader($name, $value);
+        $this->request->setHttpHeader($name, (string) $value);
     }
 
     /**

@@ -231,9 +231,9 @@ class BrowserContext extends BaseContext
     /**
      * @Then (I )wait :count second(s)
      */
-    public function iWaitSeconds($count): void
+    public function iWaitSeconds(float|int|string $count): void
     {
-        \usleep($count * 1000000);
+        \usleep((int) \round((float) $count * 1_000_000));
     }
 
     /**

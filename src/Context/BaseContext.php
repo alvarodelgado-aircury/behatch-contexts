@@ -29,10 +29,10 @@ abstract class BaseContext extends RawMinkContext implements TranslatableContext
      * ru
      * @transform /^(0|[1-9]\d*)(?:ой|ий|ый|ей|й)?$/
      */
-    public function castToInt($count): int
+    public function castToInt($count): int|string
     {
-        if ((int)$count < PHP_INT_MAX) {
-            return (int)$count;
+        if ((int) $count < PHP_INT_MAX) {
+            return (int) $count;
         }
 
         return $count;

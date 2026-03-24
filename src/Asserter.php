@@ -34,7 +34,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertContains($expected, $actual, string $message = null): void
+    protected function assertContains($expected, $actual, ?string $message = null): void
     {
         $regex = '/' . \preg_quote($expected, '/') . '/ui';
 
@@ -47,7 +47,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertNotContains($expected, $actual, string $message = null): void
+    protected function assertNotContains($expected, $actual, ?string $message = null): void
     {
         $message = $message ?: "The string '$expected' was found.";
 
@@ -62,7 +62,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertCount($expected, array $elements, string $message = null): void
+    protected function assertCount($expected, array $elements, ?string $message = null): void
     {
         $this->assert(
             (int)$expected === \count($elements),
@@ -73,7 +73,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertEquals($expected, $actual, string $message = null): void
+    protected function assertEquals($expected, $actual, ?string $message = null): void
     {
         $this->assert(
             $expected === $actual,
@@ -84,7 +84,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertSame($expected, $actual, string $message = null): void
+    protected function assertSame($expected, $actual, ?string $message = null): void
     {
         $this->assert(
             $expected === $actual,
@@ -95,7 +95,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertArrayHasKey($key, $array, string $message = null): void
+    protected function assertArrayHasKey($key, $array, ?string $message = null): void
     {
         $this->assert(
             isset($array[$key]),
@@ -106,7 +106,7 @@ trait Asserter
     /**
      * @throws ExpectationException
      */
-    protected function assertArrayNotHasKey($key, $array, string $message = null): void
+    protected function assertArrayNotHasKey($key, $array, ?string $message = null): void
     {
         $message = $message ?: "The array has key '$key'";
 
